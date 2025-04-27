@@ -1611,6 +1611,487 @@ export class Task extends EventEmitter<ClineEvents> {
 		yield* iterator
 	}
 
+	public async presentAssistantMessage() {
+		if (this.abort) {
+			throw new Error(`[Cline#presentAssistantMessage] task ${this.taskId}.${this.instanceId} aborted`)
+		}
+
+		if (this.presentAssistantMessageLocked) {
+			this.presentAssistantMessageHasPendingUpdates = true
+			return
+		}
+		this.presentAssistantMessageLocked = true
+		this.presentAssistantMessageHasPendingUpdates = false
+
+		if (this.currentStreamingContentIndex >= this.assistantMessageContent.length) {
+			// this may happen if the last content block was completed before streaming could finish. if streaming is finished, and we're out of bounds then this means we already presented/executed the last content block and are ready to continue to next request
+			if (this.didCompleteReadingStream) {
+				this.userMessageContentReady = true
+			}
+			// console.log("no more content blocks to stream! this shouldn't happen?")
+			this.presentAssistantMessageLocked = false
+			return
+			//throw new Error("No more content blocks to stream! This shouldn't happen...") // remove and just return after testing
+		}
+
+		const block = cloneDeep(this.assistantMessageContent[this.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
+
+		switch (block.type) {
+			case "text": {
+				if (this.didRejectTool || this.didAlreadyUseTool) {
+					break
+				}
+				let content = block.content
+				if (content) {
+					// (have to do this for partial and complete since sending content in thinking tags to markdown renderer will automatically be removed)
+					// Remove end substrings of <thinking or </thinking (below xml parsing is only for opening tags)
+					// (this is done with the xml parsing below now, but keeping here for reference)
+					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?$/, "")
+					// Remove all instances of <thinking> (with optional line break after) and </thinking> (with optional line break before)
+					// - Needs to be separate since we dont want to remove the line break before the first tag
+					// - Needs to happen before the xml parsing below
+					content = content.replace(/<thinking>\s?/g, "")
+					content = content.replace(/\s?<\/thinking>/g, "")
+
+					// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
+					// (prevents scrollview from jumping when tags are automatically removed)
+					const lastOpenBracketIndex = content.lastIndexOf("<")
+					if (lastOpenBracketIndex !== -1) {
+						const possibleTag = content.slice(lastOpenBracketIndex)
+						// Check if there's a '>' after the last '<' (i.e., if the tag is complete) (complete thinking and tool tags will have been removed by now)
+						const hasCloseBracket = possibleTag.includes(">")
+						if (!hasCloseBracket) {
+							// Extract the potential tag name
+							let tagContent: string
+							if (possibleTag.startsWith("</")) {
+								tagContent = possibleTag.slice(2).trim()
+							} else {
+								tagContent = possibleTag.slice(1).trim()
+							}
+							// Check if tagContent is likely an incomplete tag name (letters and underscores only)
+							const isLikelyTagName = /^[a-zA-Z_]+$/.test(tagContent)
+							// Preemptively remove < or </ to keep from these artifacts showing up in chat (also handles closing thinking tags)
+							const isOpeningOrClosing = possibleTag === "<" || possibleTag === "</"
+							// If the tag is incomplete and at the end, remove it from the content
+							if (isOpeningOrClosing || isLikelyTagName) {
+								content = content.slice(0, lastOpenBracketIndex).trim()
+							}
+						}
+					}
+				}
+				await this.say("text", content, undefined, block.partial)
+				break
+			}
+			case "tool_use":
+				const toolDescription = (): string => {
+					switch (block.name) {
+						case "execute_command":
+							return `[${block.name} for '${block.params.command}']`
+						case "read_file":
+							return `[${block.name} for '${block.params.path}']`
+						case "fetch_instructions":
+							return `[${block.name} for '${block.params.task}']`
+						case "write_to_file":
+							return `[${block.name} for '${block.params.path}']`
+						case "apply_diff":
+							return `[${block.name} for '${block.params.path}']`
+						case "search_files":
+							return `[${block.name} for '${block.params.regex}'${
+								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
+							}]`
+						case "insert_content":
+							return `[${block.name} for '${block.params.path}']`
+						case "search_and_replace":
+							return `[${block.name} for '${block.params.path}']`
+						case "list_files":
+							return `[${block.name} for '${block.params.path}']`
+						case "list_code_definition_names":
+							return `[${block.name} for '${block.params.path}']`
+						case "browser_action":
+							return `[${block.name} for '${block.params.action}']`
+						case "use_mcp_tool":
+							return `[${block.name} for '${block.params.server_name}']`
+						case "access_mcp_resource":
+							return `[${block.name} for '${block.params.server_name}']`
+						case "ask_followup_question":
+							return `[${block.name} for '${block.params.question}']`
+						case "attempt_completion":
+							return `[${block.name}]`
+						case "switch_mode":
+							return `[${block.name} to '${block.params.mode_slug}'${block.params.reason ? ` because: ${block.params.reason}` : ""}]`
+						case "new_task": {
+							const mode = block.params.mode ?? defaultModeSlug
+							const message = block.params.message ?? "(no message)"
+							const modeName = getModeBySlug(mode, customModes)?.name ?? mode
+							return `[${block.name} in ${modeName} mode: '${message}']`
+						}
+						case "repomix":
+							return `[${block.name}]` // Repomix uses execute_command, so just show the name here.
+					}
+				}
+
+				if (this.didRejectTool) {
+					// ignore any tool content after user has rejected tool once
+					if (!block.partial) {
+						this.userMessageContent.push({
+							type: "text",
+							text: `Skipping tool ${toolDescription()} due to user rejecting a previous tool.`,
+						})
+					} else {
+						// partial tool after user rejected a previous tool
+						this.userMessageContent.push({
+							type: "text",
+							text: `Tool ${toolDescription()} was interrupted and not executed due to user rejecting a previous tool.`,
+						})
+					}
+					break
+				}
+
+				if (this.didAlreadyUseTool) {
+					// ignore any content after a tool has already been used
+					this.userMessageContent.push({
+						type: "text",
+						text: `Tool [${block.name}] was not executed because a tool has already been used in this message. Only one tool may be used per message. You must assess the first tool's result before proceeding to use the next tool.`,
+					})
+					break
+				}
+
+				const pushToolResult = (content: ToolResponse) => {
+					this.userMessageContent.push({
+						type: "text",
+						text: `${toolDescription()} Result:`,
+					})
+					if (typeof content === "string") {
+						this.userMessageContent.push({
+							type: "text",
+							text: content || "(tool did not return anything)",
+						})
+					} else {
+						this.userMessageContent.push(...content)
+					}
+					// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
+					this.didAlreadyUseTool = true
+
+					// Flag a checkpoint as possible since we've used a tool
+					// which may have changed the file system.
+				}
+
+				const askApproval = async (
+					type: ClineAsk,
+					partialMessage?: string,
+					progressStatus?: ToolProgressStatus,
+				) => {
+					const { response, text, images } = await this.ask(type, partialMessage, false, progressStatus)
+					if (response !== "yesButtonClicked") {
+						// Handle both messageResponse and noButtonClicked with text
+						if (text) {
+							await this.say("user_feedback", text, images)
+							pushToolResult(
+								formatResponse.toolResult(formatResponse.toolDeniedWithFeedback(text), images),
+							)
+						} else {
+							pushToolResult(formatResponse.toolDenied())
+						}
+						this.didRejectTool = true
+						return false
+					}
+					// Handle yesButtonClicked with text
+					if (text) {
+						await this.say("user_feedback", text, images)
+						pushToolResult(formatResponse.toolResult(formatResponse.toolApprovedWithFeedback(text), images))
+					}
+					return true
+				}
+
+				const askFinishSubTaskApproval = async () => {
+					// ask the user to approve this task has completed, and he has reviewd it, and we can declare task is finished
+					// and return control to the parent task to continue running the rest of the sub-tasks
+					const toolMessage = JSON.stringify({
+						tool: "finishTask",
+					})
+
+					return await askApproval("tool", toolMessage)
+				}
+
+				const handleError = async (action: string, error: Error) => {
+					const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
+					await this.say(
+						"error",
+						`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`,
+					)
+					// this.toolResults.push({
+					// 	type: "tool_result",
+					// 	tool_use_id: toolUseId,
+					// 	content: await this.formatToolError(errorString),
+					// })
+					pushToolResult(formatResponse.toolError(errorString))
+				}
+
+				// If block is partial, remove partial closing tag so its not presented to user
+				const removeClosingTag = (tag: ToolParamName, text?: string): string => {
+					if (!block.partial) {
+						return text || ""
+					}
+					if (!text) {
+						return ""
+					}
+					// This regex dynamically constructs a pattern to match the closing tag:
+					// - Optionally matches whitespace before the tag
+					// - Matches '<' or '</' optionally followed by any subset of characters from the tag name
+					const tagRegex = new RegExp(
+						`\\s?<\/?${tag
+							.split("")
+							.map((char) => `(?:${char})?`)
+							.join("")}$`,
+						"g",
+					)
+					return text.replace(tagRegex, "")
+				}
+
+				if (block.name !== "browser_action") {
+					await this.browserSession.closeBrowser()
+				}
+
+				if (!block.partial) {
+					this.recordToolUsage(block.name)
+					telemetryService.captureToolUsage(this.taskId, block.name)
+				}
+
+				// Validate tool use before execution
+				const { mode, customModes } = (await this.providerRef.deref()?.getState()) ?? {}
+				try {
+					validateToolUse(
+						block.name as ToolName,
+						mode ?? defaultModeSlug,
+						customModes ?? [],
+						{
+							apply_diff: this.diffEnabled,
+						},
+						block.params,
+					)
+				} catch (error) {
+					this.consecutiveMistakeCount++
+					pushToolResult(formatResponse.toolError(error.message))
+					break
+				}
+
+				switch (block.name) {
+					case "write_to_file":
+						await writeToFileTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
+					case "apply_diff":
+						await applyDiffTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
+					case "insert_content":
+						await insertContentTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
+					case "search_and_replace":
+						await searchAndReplaceTool(
+							this,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+						)
+						break
+					case "read_file":
+						await readFileTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+
+						break
+					case "fetch_instructions":
+						await fetchInstructionsTool(this, block, askApproval, handleError, pushToolResult)
+						break
+					case "list_files":
+						await listFilesTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
+					case "list_code_definition_names":
+						await listCodeDefinitionNamesTool(
+							this,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+						)
+						break
+					case "search_files":
+						await searchFilesTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
+					case "browser_action":
+						await browserActionTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
+					case "execute_command":
+						await executeCommandTool(
+							this,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+						)
+						break
+					case "use_mcp_tool":
+						await useMcpToolTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
+					case "access_mcp_resource":
+						await accessMcpResourceTool(
+							this,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+						)
+						break
+					case "ask_followup_question":
+						await askFollowupQuestionTool(
+							this,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+						)
+						break
+					case "switch_mode":
+						await switchModeTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
+					case "new_task":
+						await newTaskTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
+					case "attempt_completion":
+						await attemptCompletionTool(
+							this,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+							toolDescription,
+							askFinishSubTaskApproval,
+						)
+						break
+				}
+
+				break
+		}
+
+		const recentlyModifiedFiles = this.fileContextTracker.getAndClearCheckpointPossibleFile()
+
+		if (recentlyModifiedFiles.length > 0) {
+			// TODO: We can track what file changes were made and only
+			// checkpoint those files, this will be save storage.
+			await this.checkpointSave()
+		}
+
+		/*
+		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present.
+		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
+		*/
+		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
+		// NOTE: when tool is rejected, iterator stream is interrupted and it waits for userMessageContentReady to be true. Future calls to present will skip execution since didRejectTool and iterate until contentIndex is set to message length and it sets userMessageContentReady to true itself (instead of preemptively doing it in iterator)
+		if (!block.partial || this.didRejectTool || this.didAlreadyUseTool) {
+			// block is finished streaming and executing
+			if (this.currentStreamingContentIndex === this.assistantMessageContent.length - 1) {
+				// its okay that we increment if !didCompleteReadingStream, it'll just return bc out of bounds and as streaming continues it will call presentAssitantMessage if a new block is ready. if streaming is finished then we set userMessageContentReady to true when out of bounds. This gracefully allows the stream to continue on and all potential content blocks be presented.
+				// last block is complete and it is finished executing
+				this.userMessageContentReady = true // will allow pwaitfor to continue
+			}
+
+			// call next block if it exists (if not then read stream will call it when its ready)
+			this.currentStreamingContentIndex++ // need to increment regardless, so when read stream calls this function again it will be streaming the next block
+
+			if (this.currentStreamingContentIndex < this.assistantMessageContent.length) {
+				// there are already more content blocks to stream, so we'll call this function ourselves
+				// await this.presentAssistantContent()
+
+				this.presentAssistantMessage()
+				return
+			}
+		}
+		// block is partial, but the read stream may have finished
+		if (this.presentAssistantMessageHasPendingUpdates) {
+			this.presentAssistantMessage()
+		}
+	}
+
+	// Transform
+
+	public async parseUserContent(userContent: UserContent) {
+		// Process userContent array, which contains various block types:
+		// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
+		// We need to apply parseMentions() to:
+		// 1. All TextBlockParam's text (first user message with task)
+		// 2. ToolResultBlockParam's content/context text arrays if it contains
+		// "<feedback>" (see formatToolDeniedFeedback, attemptCompletion,
+		// executeCommand, and consecutiveMistakeCount >= 3) or "<answer>"
+		// (see askFollowupQuestion), we place all user generated content in
+		// these tags so they can effectively be used as markers for when we
+		// should parse mentions).
+		return Promise.all(
+			userContent.map(async (block) => {
+				const shouldProcessMentions = (text: string) => text.includes("<task>") || text.includes("<feedback>")
+
+				if (block.type === "text") {
+					if (shouldProcessMentions(block.text)) {
+						return {
+							...block,
+							text: await parseMentions(
+								block.text,
+								this.cwd,
+								this.urlContentFetcher,
+								this.fileContextTracker,
+							),
+						}
+					}
+
+					return block
+				} else if (block.type === "tool_result") {
+					if (typeof block.content === "string") {
+						if (shouldProcessMentions(block.content)) {
+							return {
+								...block,
+								content: await parseMentions(
+									block.content,
+									this.cwd,
+									this.urlContentFetcher,
+									this.fileContextTracker,
+								),
+							}
+						}
+
+						return block
+					} else if (Array.isArray(block.content)) {
+						const parsedContent = await Promise.all(
+							block.content.map(async (contentBlock) => {
+								if (contentBlock.type === "text" && shouldProcessMentions(contentBlock.text)) {
+									return {
+										...contentBlock,
+										text: await parseMentions(
+											contentBlock.text,
+											this.cwd,
+											this.urlContentFetcher,
+											this.fileContextTracker,
+										),
+									}
+								}
+
+								return contentBlock
+							}),
+						)
+
+						return { ...block, content: parsedContent }
+					}
+
+					return block
+				}
+
+				return block
+			}),
+		)
+	}
+
 	// Checkpoints
 
 	public async checkpointSave() {

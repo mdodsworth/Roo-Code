@@ -181,6 +181,7 @@ export const TOOL_DISPLAY_NAMES: Record<ToolName, string> = {
 	new_task: "create new task",
 	insert_content: "insert content",
 	search_and_replace: "search and replace",
+	repomix: "gather codebase context",
 } as const
 
 export type { ToolGroup }
@@ -197,7 +198,7 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 		tools: ["browser_action"],
 	},
 	command: {
-		tools: ["execute_command"],
+		tools: ["execute_command", "repomix"],
 	},
 	mcp: {
 		tools: ["use_mcp_tool", "access_mcp_resource"],

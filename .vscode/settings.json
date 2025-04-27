@@ -9,5 +9,15 @@
 		"dist": true // set this to false to include "dist" folder in search results
 	},
 	// Turn off tsc task auto detection since we have the necessary tasks as npm scripts
-	"typescript.tsc.autoDetect": "off"
+	"typescript.tsc.autoDetect": "off",
+	"i18n-ally.localesPaths": [
+		"locales",
+		"out/i18n",
+		"src/i18n",
+		"out/i18n/locales",
+		"src/i18n/locales",
+		"webview-ui/src/i18n",
+		"webview-ui/src/__mocks__/i18n",
+		"webview-ui/src/i18n/locales"
+	]
 }
