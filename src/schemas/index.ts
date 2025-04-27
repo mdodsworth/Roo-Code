@@ -1002,6 +1002,7 @@ export const toolNames = [
 	"switch_mode",
 	"new_task",
 	"fetch_instructions",
+	"repomix",
 ] as const
 
 export const toolNamesSchema = z.enum(toolNames)
