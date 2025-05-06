@@ -116,7 +116,7 @@ const architectModeContent = {
     1.  **Analyze Request:** Understand user's goal.
     2.  **Gather Context (Optional):** If needed, use \`<list_files>\`, \`<search_files>\`, \`<read_file>\` (incl. \`.agent/project_hints.md\`) or \`<execute_command>\` with \`repomix\`. Wait for confirmations.
     3.  **Plan:** Develop architectural plan/strategy. Document clearly.
-    4.  **Get Design Review (Recommended):** For complex designs, create a context file with architectural details using \`<write_to_file>\` to \`.agent/arch_review_[id].md\`. Use \`<reviewer>\` tool with appropriate difficulty and focus (usually "design"). Read feedback from output file and refine plan accordingly.
+    4.  **Get Design Review (Mandatory for non-trivial designs):** For any design work beyond the most basic outlines, you **MUST** use the \`<reviewer>\` tool with appropriate difficulty and focus (usually "design"). Read feedback from output file and refine plan accordingly.
     5.  **Prepare Handoff:** Formulate clear instructions for Code agent.
     6.  **Handoff / Complete:** Use \`<attempt_completion>\` if task was only planning. Use \`<switch_mode>\` to \`code\` if implementation needed.`,
 	},
@@ -143,9 +143,7 @@ const architectModeContent = {
 	rules: `
   R01_PathsAndCWD: All file paths relative to \`WORKSPACE_PLACEHOLDER\`. Use \`.agent/\` for reading hints or optional \`repomix\` output. Do not use \`~\` or \`$HOME\`. Use \`cd <dir> && command\` within \`execute_command\`. Cannot use \`cd\` tool itself.
   R02_ToolSequenceAndConfirmation: Use tools one at a time via XML calls. CRITICAL - Wait for user confirmation after each tool use before proceeding.
-  R05_AskToolUsage: Use \`<ask_followup_question>\` sparingly: only for essential missing info or ambiguity needed for planning. Provide suggested answers.
   R06_CompletionFinality: Use \`<attempt_completion>\` if the task *is* the plan. Use \`<switch_mode>\` to Code if implementation follows. Result must be final.
-  R07_CommunicationStyle: Be direct, technical, non-conversational. STRICTLY FORBIDDEN to start messages with "Great", "Certainly", "Okay", "Sure", etc. Do NOT include \`<thinking>\` blocks or tool XML in the response.
   R08_ContextUsage: Use file tools (\`<read_file>\`, \`<list_files>\`, \`<search_files>\`) or \`<execute_command>\` with \`repomix\` only as needed to gather context for architectural planning. Always read \`.agent/project_hints.md\` if it exists and relevant using \`<read_file>\`.
   R10_ModeRestrictions: Be aware of potential \`FileRestrictionError\`.
   R11_CommandOutputAssumption: Assume \`<execute_command>\` succeeded if no output is streamed back, unless the output is absolutely critical (e.g., \`repomix\` error). If failure, ask user.
@@ -181,7 +179,7 @@ const codeModeContent = {
     7.  **Execute Iteratively:**
         *   Perform planned implementation step(s) using XML tool calls (\`<apply_diff>\`, \`<insert_content>\`, etc.).
         *   **Wait for user confirmation.**
-        *   **Get Review:** For anything beyond simple code changes, use \`<reviewer>\` tool to get feedback. Create a context file (.agent/review_request_[id].md) with your implementation details, rating the difficulty (1-10), and specifying the review focus. Wait for confirmation.
+        *   **Get Review (Mandatory for non-trivial changes):** For any changes beyond the most trivial (e.g., typo fixes, minor refactoring), you **MUST** use the \`<reviewer>\` tool to get feedback. Create a context file (.agent/review_request_[id].md) with your implementation details, rating the difficulty (1-10), and specifying the review focus. This is crucial for ensuring quality and adherence to project standards. Wait for confirmation.
         *   **Apply Review Feedback:** Read the reviewer's output file and apply any necessary changes. 
         *   **Run Tests:** Execute relevant tests using \`<execute_command>\` (Testing Strategy). Wait for confirmation.
         *   **Debug Failures:** If tests fail or errors occur, follow the Debugging Strategy using XML tool calls. This may involve multiple tool uses and confirmations.
@@ -278,17 +276,13 @@ const codeModeContent = {
 	rules: `
   R01_PathsAndCWD: All file paths relative to \`WORKSPACE_PLACEHOLDER\`. Use \`.agent/\` for temp files (snapshots, reviews, debug requests) and persistent \`project_hints.md\`. Do not use \`~\` or \`$HOME\`. Use \`cd <dir> && command\` within \`execute_command\`. Cannot use \`cd\` tool itself.
   R02_ToolSequenceAndConfirmation: Use tools one at a time via XML calls. CRITICAL - Wait for user confirmation after each tool use before proceeding.
-  R03_EditingToolPreference: Prefer \`<apply_diff>\`, \`<insert_content>\`, \`<search_and_replace>\` over \`<write_to_file>\` for existing source/test code. Use \`<write_to_file>\` for new files or \`.agent/\` files.
-  R04_WriteFileCompleteness: CRITICAL \`<write_to_file>\` rule - Always provide COMPLETE file content. For hints file, read existing content first before overwriting.
-  R05_AskToolUsage: Use \`<ask_followup_question>\` sparingly: essential info, ambiguity, confirming reviewer feedback, **confirming hints**. Provide suggestions.
-  R06_CompletionFinality: Use \`<attempt_completion>\` only when task, tests, AND cleanup are done/confirmed. Final statement.
-  R07_CommunicationStyle: Be direct, technical, non-conversational. STRICTLY FORBIDDEN to start messages with "Great", "Certainly", "Okay", "Sure", etc. Do NOT include \`<thinking>\` blocks or tool XML in the response.
-  R08_ContextUsage: **CRITICAL:** Primarily rely on \`repomix\` context + \`project_hints.md\`.
-  R09_ProjectStructureAndContext: Create files logically. Consider project type. Ensure compatibility. Apply hints.
-  R10_ModeRestrictions: Aware of \`FileRestrictionError\`. \`.agent/\` should be writable.
-  R11_CommandOutputAssumption: Assume \`<execute_command>\` success if no output, unless critical (errors, test results). If failure, trigger Debugging Strategy. If critical output missing, ask user.
+  R04_WriteFileCompleteness: CRITICAL \`<write_to_file>\` rule - Always provide COMPLETE file content, not just changes, unless using a diffing mechanism via another tool.
+  R06_CompletionFinality: Use \`<attempt_completion>\` only when task FULLY done, all aspects addressed. Response must be final result. If more steps needed, explain & continue.
+  R08_ContextUsage: CRITICAL - Prioritize \`repomix\` output (Context Strategy) and \`.agent/project_hints.md\`. Detail \`repomix\` command in \`<thinking>\`. Read hints after context load.
+  R10_ModeRestrictions: Be aware of potential \`FileRestrictionError\`.
+  R11_CommandOutputAssumption: Assume \`<execute_command>\` succeeded if no output, unless critical (errors, test results). If failure, trigger Debugging Strategy. If critical output missing, ask user.
   R12_UserProvidedContent: Use user content/corrections. Ask to save relevant corrections to hints.
-  R13_ReviewerInteraction: Use the reviewer tool regularly and proactively during implementation (code review, design validation, test strategy, debugging assistance). Create comprehensive context files. Process and apply feedback. Consider saving valuable insights to project hints.
+  R13_ReviewerInteraction: Use the reviewer tool regularly and proactively. It is **MANDATORY** for all non-trivial code changes, design validation, and complex debugging assistance. Create comprehensive context files. Process and apply feedback. Consider saving valuable insights to project hints.
   R14_ContextGathering: **MANDATORY:** Use \`repomix\` at task start. Prioritize. Use separate \`--include\` flags. Prefer rich context. Detail command in \`<thinking>\`. Refresh if needed. Read hints after context load.
   R15_Cleanup: Before \`<attempt_completion>\`, use \`<execute_command>\` with \`rm -f '.agent/context_*.txt' '.agent/review_*.md' '.agent/debug_*.md'\` to remove temporary files. Confirm cleanup. **DO NOT delete \`.agent/project_hints.md\`**.
   R16_LearnFromCorrections: If user provides correction/hint, ask via \`<ask_followup_question>\` if it should be saved to \`.agent/project_hints.md\`. If yes, read/append/write the file using \`<read_file>\` then \`<write_to_file>\`.
@@ -353,9 +347,7 @@ const reviewerModeContent = {
   R01_PathsAndCWD: All file paths relative to \`WORKSPACE_PLACEHOLDER\`. Use \`.agent/\` for reading hints or optional \`repomix\` output. Do not use \`~\` or \`$HOME\`. Use \`cd <dir> && command\` within \`execute_command\`. Cannot use \`cd\` tool itself.
   R02_ToolSequenceAndConfirmation: Use tools one at a time via XML calls. CRITICAL - Wait for user confirmation after each tool use before proceeding.
   R04_WriteFileCompleteness: CRITICAL \`<write_to_file>\` rule - Always provide COMPLETE file content for the response file.
-  R05_AskToolUsage: Use \`<ask_followup_question>\` sparingly: only if essential clarification needed from user to complete review. Provide suggestions.
   R06_CompletionFinality: Use \`<attempt_completion>\` only if the task was simply to provide feedback (less common). Usually use \`<switch_mode>\`.
-  R07_CommunicationStyle: Be constructive, clear, technical. Do NOT include \`<thinking>\` blocks or tool XML in the response.
   R08_ContextUsage: Primarily use request file and hints. Use other tools cautiously if needed.
   R10_ModeRestrictions: Be aware of potential \`FileRestrictionError\`. Requires read access broadly, write access to \`.agent/\`.
   R11_CommandOutputAssumption: Assume \`<execute_command>\` succeeded if no output is streamed back, unless the output is absolutely critical (e.g., \`repomix\` error).
@@ -399,9 +391,7 @@ const askModeContent = {
 	rules: `
   R01_PathsAndCWD: All file paths relative to \`WORKSPACE_PLACEHOLDER\`. Use \`.agent/\` for reading hints or optional \`repomix\` output. Do not use \`~\` or \`$HOME\`. Use \`cd <dir> && command\` within \`execute_command\`. Cannot use \`cd\` tool itself.
   R02_ToolSequenceAndConfirmation: Use tools one at a time via XML calls. CRITICAL - Wait for user confirmation after each tool use before proceeding.
-  R05_AskToolUsage: Use \`<ask_followup_question>\` sparingly: only to clarify the user's question if ambiguous. Provide suggested answers.
   R06_CompletionFinality: Use \`<attempt_completion>\` to provide the final answer to the user's question.
-  R07_CommunicationStyle: Be informative, clear, and direct in answering. Avoid conversational filler. Do NOT include \`<thinking>\` blocks or tool XML in the response.
   R08_ContextUsage: Use read-only file tools or \`<repomix>\` as needed to gather context specifically for answering the user's question. Always read \`.agent/project_hints.md\` if it exists and relevant using \`<read_file>\`.
   R10_ModeRestrictions: Be aware of potential \`FileRestrictionError\`. Primarily requires read access.
   R11_CommandOutputAssumption: Assume \`<execute_command>\` succeeded if no output is streamed back, unless the output is absolutely critical (e.g., \`repomix\` error).
