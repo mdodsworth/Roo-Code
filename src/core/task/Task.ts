@@ -1998,7 +1998,8 @@ export class Task extends EventEmitter<ClineEvents> {
 						// Reviewer is now handled via execute_command directly, similar to repomix
 						// This case is here for backwards compatibility
 						pushToolResult(
-							`The reviewer tool now uses execute_command. Please use execute_command directly with the Claude CLI.`,
+							`The reviewer is now handled via an external tool, rather than a separate mode. Please 
+							see the instructions for running the reviewer tool.`,
 						)
 						break
 				}
