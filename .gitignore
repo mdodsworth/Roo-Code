@@ -36,3 +36,5 @@ logs
 
 # Vite development
 .vite-port
+
+**/.claude/settings.local.json

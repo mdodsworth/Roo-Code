@@ -21,6 +21,7 @@ import { getAccessMcpResourceDescription } from "./access-mcp-resource"
 import { getSwitchModeDescription } from "./switch-mode"
 import { getNewTaskDescription } from "./new-task"
 import { getRepomixDescription } from "./repomix"
+import { getReviewerDescription } from "./reviewer-description"
 
 // Map of tool names to their description functions
 const toolDescriptionMap: Record<string, (args: ToolArgs) => string | undefined> = {
@@ -43,6 +44,7 @@ const toolDescriptionMap: Record<string, (args: ToolArgs) => string | undefined>
 	apply_diff: (args) =>
 		args.diffStrategy ? args.diffStrategy.getToolDescription({ cwd: args.cwd, toolOptions: args.toolOptions }) : "",
 	repomix: (args) => getRepomixDescription(args),
+	reviewer: (args) => getReviewerDescription(args),
 }
 
 export function getToolDescriptionsForMode(
@@ -124,4 +126,5 @@ export {
 	getSwitchModeDescription,
 	getInsertContentDescription,
 	getSearchAndReplaceDescription,
+	getReviewerDescription,
 }

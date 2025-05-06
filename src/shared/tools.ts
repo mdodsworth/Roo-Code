@@ -63,6 +63,10 @@ export const toolParamNames = [
 	"ignore_case",
 	"start_line",
 	"end_line",
+	"context_file_path",
+	"difficulty",
+	"review_focus",
+	"output_file_path",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -157,6 +161,13 @@ export interface SearchAndReplaceToolUse extends ToolUse {
 		Partial<Pick<Record<ToolParamName, string>, "use_regex" | "ignore_case" | "start_line" | "end_line">>
 }
 
+export interface ReviewerToolUse extends ToolUse {
+	name: "reviewer"
+	params: Partial<
+		Pick<Record<ToolParamName, string>, "context_file_path" | "difficulty" | "review_focus" | "output_file_path">
+	>
+}
+
 // Define tool group configuration
 export type ToolGroupConfig = {
 	tools: readonly string[]
@@ -182,6 +193,7 @@ export const TOOL_DISPLAY_NAMES: Record<ToolName, string> = {
 	insert_content: "insert content",
 	search_and_replace: "search and replace",
 	repomix: "gather codebase context",
+	reviewer: "get design/code review",
 } as const
 
 export type { ToolGroup }
@@ -198,7 +210,7 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 		tools: ["browser_action"],
 	},
 	command: {
-		tools: ["execute_command", "repomix"],
+		tools: ["execute_command", "repomix", "reviewer"],
 	},
 	mcp: {
 		tools: ["use_mcp_tool", "access_mcp_resource"],
@@ -206,6 +218,9 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 	modes: {
 		tools: ["switch_mode", "new_task"],
 		alwaysAvailable: true,
+	},
+	review: {
+		tools: ["reviewer"],
 	},
 }
 
