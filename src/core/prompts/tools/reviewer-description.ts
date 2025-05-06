@@ -11,10 +11,10 @@ Example: Use Claude CLI to review a design document
 `
 	// Combine the parts.
 	const finalDescription = `## reviewer
-Description: Use the Claude CLI (via \`execute_command\`) to perform code or design reviews of your work. The context file should contain all necessary information, and Claude will analyze it and provide feedback.
+Description: This tool facilitates code or design reviews by leveraging the Claude AI model. It is **not a standalone tool** but rather a **workflow pattern** that utilizes the \`execute_command\` tool to run a specific command involving the \`claude\` command-line interface (CLI). You will prepare a context file (typically in markdown format) with all necessary information for the review. Then, you will use \`execute_command\` to pipe this context file to the \`claude\` CLI, instructing it to perform the review. Claude will analyze the provided context and generate feedback.
 
 **Context File Structure:**
-Include the following information in your context file:
+Include the following information in your context file (e.g., \`.agent/review_request_myfeature.md\`):
 \`\`\`
 # Review Request
 ## Intent
@@ -35,8 +35,8 @@ Include the following information in your context file:
 
 Claude will read this file, think deeply according to the difficulty level, and focus on the specified area. The prompt in the command should be minimal, just telling Claude to act as a reviewer and follow the instructions in the file.
 
-Parameters: None specific to 'reviewer' itself. Use the parameters of \`execute_command\`.
-Usage Format: Use the \`execute_command\` tool structure.
+Parameters: The 'reviewer' pattern itself does not have direct parameters. Instead, you will use the parameters of the \`execute_command\` tool. The crucial part is constructing the correct command for \`execute_command\`.
+Usage Format: To use the reviewer, you **MUST** use the \`execute_command\` tool. The \`<command>\` parameter within \`execute_command\` will typically involve using \`cat\` to output your context file and piping (\`|\`) it to the \`claude\` CLI, redirecting Claude's output to a feedback file. See the example below.
 
 ${formattedExample}
 

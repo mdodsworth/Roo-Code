@@ -161,13 +161,6 @@ export interface SearchAndReplaceToolUse extends ToolUse {
 		Partial<Pick<Record<ToolParamName, string>, "use_regex" | "ignore_case" | "start_line" | "end_line">>
 }
 
-export interface ReviewerToolUse extends ToolUse {
-	name: "reviewer"
-	params: Partial<
-		Pick<Record<ToolParamName, string>, "context_file_path" | "difficulty" | "review_focus" | "output_file_path">
-	>
-}
-
 // Define tool group configuration
 export type ToolGroupConfig = {
 	tools: readonly string[]
