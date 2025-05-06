@@ -9,3 +9,13 @@ export type ToolArgs = {
 	mcpHub?: McpHub
 	toolOptions?: any
 }
+
+export interface AIToolDefinition {
+	name: string
+	description: string
+	parameters: {
+		type: string
+		required?: string[]
+		properties: Record<string, any>
+	}
+}

@@ -42,7 +42,7 @@ export type ProviderName = z.infer<typeof providerNamesSchema>
  * ToolGroup
  */
 
-export const toolGroups = ["read", "edit", "browser", "command", "mcp", "modes"] as const
+export const toolGroups = ["read", "edit", "browser", "command", "mcp", "modes", "review"] as const
 
 export const toolGroupsSchema = z.enum(toolGroups)
 
@@ -1001,6 +1001,7 @@ export const toolNames = [
 	"new_task",
 	"fetch_instructions",
 	"repomix",
+	"reviewer",
 ] as const
 
 export const toolNamesSchema = z.enum(toolNames)

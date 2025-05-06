@@ -139,9 +139,9 @@ type GlobalSettings = {
 				roleDefinition: string
 				customInstructions?: string | undefined
 				groups: (
-					| ("read" | "edit" | "browser" | "command" | "mcp" | "modes")
+					| ("read" | "edit" | "browser" | "command" | "mcp" | "modes" | "review")
 					| [
-							"read" | "edit" | "browser" | "command" | "mcp" | "modes",
+							"read" | "edit" | "browser" | "command" | "mcp" | "modes" | "review",
 							{
 								fileRegex?: string | undefined
 								description?: string | undefined
@@ -531,6 +531,7 @@ type RooCodeEvents = {
 			| "new_task"
 			| "fetch_instructions"
 			| "repomix"
+			| "reviewer"
 		),
 		string,
 	]

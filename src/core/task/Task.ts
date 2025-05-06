@@ -49,8 +49,28 @@ import { RooTerminalProcess } from "../../integrations/terminal/types"
 import { TerminalRegistry } from "../../integrations/terminal/TerminalRegistry"
 
 // utils
-import { calculateApiCostAnthropic } from "../../utils/cost"
-import { getWorkspacePath } from "../../utils/path"
+import { calculateApiCostAnthropic } from "../utils/cost"
+import { getWorkspacePath } from "../utils/path"
+
+// tools
+import { fetchInstructionsTool } from "./tools/fetchInstructionsTool"
+import { listFilesTool } from "./tools/listFilesTool"
+import { readFileTool } from "./tools/readFileTool"
+import { writeToFileTool } from "./tools/writeToFileTool"
+import { applyDiffTool } from "./tools/applyDiffTool"
+import { insertContentTool } from "./tools/insertContentTool"
+import { searchAndReplaceTool } from "./tools/searchAndReplaceTool"
+import { listCodeDefinitionNamesTool } from "./tools/listCodeDefinitionNamesTool"
+import { searchFilesTool } from "./tools/searchFilesTool"
+import { browserActionTool } from "./tools/browserActionTool"
+import { executeCommandTool } from "./tools/executeCommandTool"
+import { useMcpToolTool } from "./tools/useMcpToolTool"
+import { accessMcpResourceTool } from "./tools/accessMcpResourceTool"
+import { askFollowupQuestionTool } from "./tools/askFollowupQuestionTool"
+import { switchModeTool } from "./tools/switchModeTool"
+import { attemptCompletionTool } from "./tools/attemptCompletionTool"
+// Reviewer now uses execute_command directly
+import { newTaskTool } from "./tools/newTaskTool"
 
 // prompts
 import { formatResponse } from "../prompts/responses"
@@ -1727,6 +1747,8 @@ export class Task extends EventEmitter<ClineEvents> {
 						}
 						case "repomix":
 							return `[${block.name}]` // Repomix uses execute_command, so just show the name here.
+						case "reviewer":
+							return `[${block.name}]` // Reviewer uses execute_command, so just show the name here.
 					}
 				}
 
@@ -1970,6 +1992,13 @@ export class Task extends EventEmitter<ClineEvents> {
 							removeClosingTag,
 							toolDescription,
 							askFinishSubTaskApproval,
+						)
+						break
+					case "reviewer":
+						// Reviewer is now handled via execute_command directly, similar to repomix
+						// This case is here for backwards compatibility
+						pushToolResult(
+							`The reviewer tool now uses execute_command. Please use execute_command directly with the Claude CLI.`,
 						)
 						break
 				}
