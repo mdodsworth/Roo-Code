@@ -191,6 +191,10 @@ export async function presentAssistantMessage(cline: Task) {
 						const modeName = getModeBySlug(mode, customModes)?.name ?? mode
 						return `[${block.name} in ${modeName} mode: '${message}']`
 					}
+					case "repomix":
+						return `[${block.name}]`
+					case "reviewer":
+						return `[${block.name}]`
 				}
 			}
 
