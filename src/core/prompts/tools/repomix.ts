@@ -4,7 +4,7 @@ import { ToolArgs } from "./types"
 // This description guides the AI on how to invoke it.
 export function getRepomixDescription(_args: ToolArgs): string {
 	const formattedExample = `
-Example: Run repomix to get project overview (multiple includes)
+Example: Run repomix to get project overview
 <execute_command>
 <command>repomix . -o .agent/context.txt --include "**/*.ts,**/*.js" --compress --no-file-summary --no-directory-structure</command>
 </execute_command>
@@ -31,7 +31,7 @@ Description: Use the \`repomix\` CLI tool (via \`execute_command\`) to gather br
   --include-empty-directories: Include empty directories in the output
   --no-git-sort-by-changes: Disable sorting files by git change count (enabled by default)
   Filter Options
-  --include <patterns>: List of include patterns (comma-separated)
+  --include <patterns>: List of include patterns (comma-separated). Note, only a single include pattern is supported, so multiple patterns must be combined with commas.
   -i, --ignore <patterns>: Additional ignore patterns (comma-separated)
   --no-gitignore: Disable .gitignore file usage
   --no-default-patterns: Disable default patterns
